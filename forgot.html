@@ -14,13 +14,13 @@
     />
     <link href="/assets/css/style.css" rel="stylesheet" />
 
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    <!-- <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
     <script type="text/javascript">
       (function(){
          // REPLACE WITH YOUR REAL PUBLIC KEY from the Dashboard
          emailjs.init("T7baF7XJ6nZCGRnMi"); 
       })();
-    </script>
+    </script> -->
   </head>
   <body>
     <div class="d-flex flex-grow-1 justify-content-center align-items-center margin-auto">
@@ -69,43 +69,48 @@
     </div>
 
     <script>
-      document.getElementById("forgotForm").addEventListener("submit", function (e) {
-          e.preventDefault();
+      document.getElementById("forgotForm").addEventListener("submit", async function (e) {
+  e.preventDefault();
 
-          const emailInput = document.getElementById("email").value;
-          const formAlert = document.getElementById("formAlert");
-          const submitBtn = document.getElementById("submitBtn");
-          const originalBtnText = submitBtn.innerHTML;
+  const emailInput = document.getElementById("email").value;
+  const formAlert = document.getElementById("formAlert");
+  const submitBtn = document.getElementById("submitBtn");
+  const originalBtnText = submitBtn.innerHTML;
 
-          // UI Loading State
-          submitBtn.disabled = true;
-          submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sending...';
-          formAlert.classList.add("d-none");
+  // 1. UI Loading State
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sending...';
+  formAlert.classList.add("d-none");
 
-          // EmailJS Parameters
-          const templateParams = {
-              to_email: emailInput
-          };
+  try {
+    // 2. CALL YOUR BACKEND (This is the secure part)
+    const response = await fetch("/api/forgot-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: emailInput }),
+    });
 
-          // SEND EMAIL VIA EMAILJS
-          // Ensure your Service ID and Template ID are correct
-          emailjs.send('service_0yj04gg', 'template_i87iden', templateParams)
-            .then(function() {
-                // SUCCESS
-                formAlert.classList.remove("d-none", "alert-danger");
-                formAlert.classList.add("alert-success");
-                formAlert.textContent = "Success! Reset link sent to " + emailInput;
-                submitBtn.innerHTML = "Link Sent!";
-            }, function(error) {
-                // ERROR
-                formAlert.classList.remove("d-none", "alert-success");
-                formAlert.classList.add("alert-danger");
-                formAlert.textContent = "Failed to send. Check console for details.";
-                console.error("EmailJS Error:", error);
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = originalBtnText;
-            });
-        });
+    const result = await response.json();
+
+    if (result.success) {
+      // Success: The backend sent the email
+      formAlert.classList.remove("d-none", "alert-danger");
+      formAlert.classList.add("alert-success");
+      formAlert.textContent = result.message; 
+      submitBtn.innerHTML = "Link Sent!";
+    } else {
+      // Error from backend
+      throw new Error(result.message || "Failed to send.");
+    }
+  } catch (error) {
+    // Network or Server Error
+    formAlert.classList.remove("d-none", "alert-success");
+    formAlert.classList.add("alert-danger");
+    formAlert.textContent = error.message;
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = originalBtnText;
+  }
+});
     </script>
   </body>
 </html>
