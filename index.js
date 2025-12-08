@@ -8,6 +8,7 @@ import jwt from "jsonwebtoken";
 import multer from "multer"; // <--- KEEP THIS LINE
 import nodemailer from "nodemailer";
 import fs from "fs";
+import axios from "axios";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -2341,7 +2342,81 @@ app.post("/api/admin/mark-claimed", authenticateAdmin, (req, res) => {
     });
   });
 });
-// === API: FORGOT PASSWORD ===
+
+
+// === API: FORGOT PASSWORD - OLD===
+// app.post("/api/forgot-password", (req, res) => {
+//   const { email } = req.body;
+
+//   if (!email) {
+//     return res.status(400).json({ success: false, message: "Email required" });
+//   }
+
+//   // 1. Find the user by their email
+//   db.query(
+//     "SELECT * FROM users WHERE email = ?",
+//     [email],
+//     async (err, results) => {
+//       if (err) {
+//         console.error("Database error:", err);
+//         return res.status(500).json({ message: "Database error" });
+//       }
+
+//       // 2. IMPORTANT: Always send a success message.
+//       // This prevents "email enumeration" attacks, where hackers
+//       // can guess which emails are registered in your system.
+//       if (results.length === 0) {
+//         console.log(`Password reset attempt for non-existent email: ${email}`);
+//         return res.json({
+//           success: true,
+//           message: "If an account exists, a reset link has been sent.",
+//         });
+//       }
+
+//       const user = results[0];
+
+//       // 3. Create a short-lived (15 min) JWT for password reset
+//       const resetToken = jwt.sign(
+//         { userId: user.id, email: user.email },
+//         JWT_RESET_SECRET, // Use the *reset* secret
+//         { expiresIn: "15m" } // Token is only valid for 15 minutes
+//       );
+//       // 4. Create the reset link
+//       // Make sure you use process.env.SITE_URL here
+//       const siteUrl = process.env.SITE_URL || "http://localhost:3000";
+//       const resetLink = `${siteUrl}/reset-password?token=${resetToken}`;
+
+//       // 5. Send the email
+//       try {
+//         await transporter.sendMail({
+//           from: `"RSU REQS" <${process.env.EMAIL_USER}>`, // Sender address
+//           to: user.email, // List of receivers
+//           subject: "Password Reset Request for RSU REQS", // Subject line
+//           html: `
+//             <p>Hello ${user.first_name},</p>
+//             <p>You requested a password reset for your RSU REQS account.</p>
+//             <p>Please click the link below to set a new password. This link is valid for 15 minutes.</p>
+//             <a href="${resetLink}" style="background-color: #0d6efd; color: white; padding: 10px 15px; text-decoration: none; border-radius: 5px;">Reset Your Password</a>
+//             <br>
+//             <p>If you did not request this, please ignore this email.</p>
+//           `,
+//         });
+
+//         res.json({
+//           success: true,
+//           message: "If an account exists, a reset link has been sent.",
+//         });
+//       } catch (emailErr) {
+//         console.error("Error sending password reset email:", emailErr);
+//         res
+//           .status(500)
+//           .json({ success: false, message: "Error sending email." });
+//       }
+//     }
+//   );
+// });
+
+// === API: FORGOT PASSWORD (SECURE BACKEND EMAILJS) - NEW ===
 app.post("/api/forgot-password", (req, res) => {
   const { email } = req.body;
 
@@ -2349,7 +2424,7 @@ app.post("/api/forgot-password", (req, res) => {
     return res.status(400).json({ success: false, message: "Email required" });
   }
 
-  // 1. Find the user by their email
+  // 1. Find the user
   db.query(
     "SELECT * FROM users WHERE email = ?",
     [email],
@@ -2359,11 +2434,8 @@ app.post("/api/forgot-password", (req, res) => {
         return res.status(500).json({ message: "Database error" });
       }
 
-      // 2. IMPORTANT: Always send a success message.
-      // This prevents "email enumeration" attacks, where hackers
-      // can guess which emails are registered in your system.
+      // 2. Security: Don't reveal if email exists or not
       if (results.length === 0) {
-        console.log(`Password reset attempt for non-existent email: ${email}`);
         return res.json({
           success: true,
           message: "If an account exists, a reset link has been sent.",
@@ -2372,46 +2444,49 @@ app.post("/api/forgot-password", (req, res) => {
 
       const user = results[0];
 
-      // 3. Create a short-lived (15 min) JWT for password reset
+      // 3. Generate the Token (Valid for 15 mins)
       const resetToken = jwt.sign(
         { userId: user.id, email: user.email },
-        JWT_RESET_SECRET, // Use the *reset* secret
-        { expiresIn: "15m" } // Token is only valid for 15 minutes
+        JWT_RESET_SECRET, // Make sure this variable is defined in your code
+        { expiresIn: "15m" } 
       );
-      // 4. Create the reset link
-      // Make sure you use process.env.SITE_URL here
+
+      // 4. Construct the Link
+      // On Render, SITE_URL should be your live URL (e.g. https://rsu-reqs.onrender.com)
       const siteUrl = process.env.SITE_URL || "http://localhost:3000";
       const resetLink = `${siteUrl}/reset-password?token=${resetToken}`;
 
-      // 5. Send the email
-      try {
-        await transporter.sendMail({
-          from: `"RSU REQS" <${process.env.EMAIL_USER}>`, // Sender address
-          to: user.email, // List of receivers
-          subject: "Password Reset Request for RSU REQS", // Subject line
-          html: `
-            <p>Hello ${user.first_name},</p>
-            <p>You requested a password reset for your RSU REQS account.</p>
-            <p>Please click the link below to set a new password. This link is valid for 15 minutes.</p>
-            <a href="${resetLink}" style="background-color: #0d6efd; color: white; padding: 10px 15px; text-decoration: none; border-radius: 5px;">Reset Your Password</a>
-            <br>
-            <p>If you did not request this, please ignore this email.</p>
-          `,
-        });
+      // 5. 🟢 SEND VIA EMAILJS REST API 🟢
+      const emailPayload = {
+        service_id: process.env.EMAILJS_SERVICE_ID,
+        template_id: process.env.EMAILJS_TEMPLATE_ID,
+        user_id: process.env.EMAILJS_PUBLIC_KEY,
+        accessToken: process.env.EMAILJS_PRIVATE_KEY, // The Secure Key
+        template_params: {
+          to_email: user.email,     // Matches {{to_email}} in template settings
+          to_name: user.fullname,   // Matches {{to_name}} in template body
+          reset_link: resetLink,    // Matches {{reset_link}} in template body
+        },
+      };
 
+      try {
+        await axios.post("https://api.emailjs.com/api/v1.0/email/send", emailPayload);
+        
+        console.log(`✅ Secure reset email sent to ${user.email}`);
         res.json({
           success: true,
           message: "If an account exists, a reset link has been sent.",
         });
       } catch (emailErr) {
-        console.error("Error sending password reset email:", emailErr);
-        res
-          .status(500)
-          .json({ success: false, message: "Error sending email." });
+        console.error("❌ EmailJS API Error:", emailErr.response?.data || emailErr.message);
+        // Even if email fails, don't crash the app, just log it
+        res.status(500).json({ success: false, message: "Error sending email." });
       }
     }
   );
 });
+
+
 
 // === API: RESET PASSWORD ===
 app.post("/api/reset-password", async (req, res) => {
