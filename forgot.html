@@ -13,7 +13,6 @@
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
     <script type="text/javascript">
       (function(){
-         // REPLACE WITH YOUR PUBLIC KEY from the Dashboard
          emailjs.init("T7baF7XJ6nZCGRnMi"); 
       })();
     </script>
@@ -60,7 +59,7 @@
           formAlert.classList.add("d-none");
 
           try {
-            // 2. GET THE TOKEN FROM BACKEND
+            // 2. GET SECURE LINK FROM BACKEND
             const response = await fetch("/api/forgot-password", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -70,19 +69,18 @@
             const result = await response.json();
 
             if (result.success) {
-              // If email exists, the backend gave us the link. Now WE send the email.
+              // If account exists, the backend gave us the link. Now WE send the email.
               if (result.emailFound) {
                   const templateParams = {
                       to_email: emailInput,
                       to_name: result.user_name,
-                      reset_link: result.reset_link // <--- The backend provided secure link
+                      reset_link: result.reset_link // <--- This fills the button in your email
                   };
 
-                  // 3. SEND EMAIL FROM BROWSER (Since we know this works for you)
+                  // 3. SEND EMAIL FROM BROWSER
                   await emailjs.send('service_0yj04gg', 'template_i87iden', templateParams);
               }
               
-              // Show success message (even if email wasn't found, for security)
               formAlert.classList.remove("d-none", "alert-danger");
               formAlert.classList.add("alert-success");
               formAlert.textContent = "If an account exists, a reset link has been sent.";
@@ -94,7 +92,7 @@
             console.error("Error:", error);
             formAlert.classList.remove("d-none", "alert-success");
             formAlert.classList.add("alert-danger");
-            formAlert.textContent = "Error: " + (error.message || "Could not send email.");
+            formAlert.textContent = "Error: " + (error.message || "Could not process request.");
             submitBtn.disabled = false;
             submitBtn.innerHTML = originalBtnText;
           }

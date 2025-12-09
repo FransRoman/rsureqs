@@ -2486,7 +2486,7 @@ app.post("/api/admin/mark-claimed", authenticateAdmin, (req, res) => {
 //   );
 // });
 
-// === API: FORGOT PASSWORD (HYBRID APPROACH) === newest
+// === API: FORGOT PASSWORD (HYBRID APPROACH) ===
 app.post("/api/forgot-password", (req, res) => {
   const { email } = req.body;
 
@@ -2504,19 +2504,18 @@ app.post("/api/forgot-password", (req, res) => {
         return res.status(500).json({ message: "Database error" });
       }
 
+      // Security: If user not found, fake success to protect privacy
       if (results.length === 0) {
-        // Security: Fake success to prevent email guessing
         return res.json({
           success: true,
-          // We return a 'fake' flag so frontend knows not to actually send an email
-          emailFound: false, 
+          emailFound: false, // Frontend will see this and skip sending email
           message: "If an account exists, a reset link has been sent.",
         });
       }
 
       const user = results[0];
 
-      // 2. Generate the Token (Valid for 15 mins)
+      // 2. Generate the Token
       const resetToken = jwt.sign(
         { userId: user.id, email: user.email },
         JWT_RESET_SECRET, 
@@ -2524,17 +2523,15 @@ app.post("/api/forgot-password", (req, res) => {
       );
 
       // 3. Construct the Link
-      const siteUrl = process.env.SITE_URL || "http://localhost:3000";
+      const siteUrl = process.env.SITE_URL || "https://rsureqs-bsz9.onrender.com";
       const resetLink = `${siteUrl}/reset-password?token=${resetToken}`;
 
-      // 4. RETURN LINK TO FRONTEND (So Browser can email it)
-      // Note: In a high-security banking app, we wouldn't do this. 
-      // For this project, this solves your EmailJS backend connection issues.
+      // 4. RETURN LINK TO FRONTEND
       res.json({
         success: true,
         emailFound: true,
-        user_name: user.fullname, // Send name for the email template
-        reset_link: resetLink,    // Send the link for the email template
+        user_name: user.fullname, 
+        reset_link: resetLink,    // <--- Sending link to browser
         message: "Link generated successfully.",
       });
     }
