@@ -95,11 +95,12 @@
 
       // 2. Prepare EmailJS parameters
       const templateParams = {
-          to_email: emailInput,
-          reset_link: resetLink,
-          // You might need to add 'to_name' if your template requires it, 
-          // but for now we'll just try to send the link.
+          to_email: emailInput, // Must match {{to_email}} in the template
+          to_name: "User",      // Must match {{to_name}} in the template
+          reset_link: resetLink, // Must match {{reset_link}} in the template
       };
+
+      emailjs.send("service_0yj04gg", "template_i87iden", templateParams)
 
       // 3. Send using EmailJS (Service ID, Template ID, Params)
       // I took these IDs from your screenshot (Fix 1).
