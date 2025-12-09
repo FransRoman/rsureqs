@@ -517,14 +517,17 @@ app.get("/forgot", (req, res) => {
 });
 
 app.get("/reset-password", (req, res) => {
-  // This page is only useful if there's a token
+  // Allow access if there is a token OR an email
   const token = req.query.token;
-  if (!token) {
+  const email = req.query.email;
+
+  // Only redirect if BOTH are missing
+  if (!token && !email) {
     return res.redirect("/forgot");
   }
+  
   res.sendFile(path.join(__dirname, "reset-password.html"));
 });
-
 // --- 🟢 END OF NEW BLOCK 🟢 ---
 
 // ADMIN AUTHENTICATION API ROUTES
