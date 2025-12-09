@@ -2556,23 +2556,96 @@ app.post("/api/admin/mark-claimed", authenticateAdmin, (req, res) => {
 // });
 
 // === API: FORGOT PASSWORD (DEBUG MODE - SHOWS REAL ERRORS) ===
+// app.post("/api/forgot-password", async (req, res) => {
+//   const { email } = req.body;
+
+//   if (!email) {
+//     return res.status(400).json({ success: false, message: "Email is required." });
+//   }
+
+//   try {
+//     // 1. Check if user exists
+//     // (Using promise-based query for cleaner async/await syntax)
+//     const [users] = await db.promise().query("SELECT * FROM users WHERE email = ?", [email]);
+
+//     if (users.length === 0) {
+//       // DEBUG MODE: Telling the truth so you know why it didn't send
+//       return res.status(404).json({ 
+//         success: false, 
+//         message: "Debug: Email not found in database." 
+//       });
+//     }
+
+//     const user = users[0];
+
+//     // 2. Generate the Token
+//     // Ensure JWT_RESET_SECRET is defined at the top of index.js!
+//     const resetToken = jwt.sign(
+//       { userId: user.id, email: user.email },
+//       process.env.JWT_RESET_SECRET || "rsu-reqs-reset-secret-key-9a8b7c6d", 
+//       { expiresIn: "15m" }
+//     );
+
+//     // 3. Create the Link (Use your Render URL in production!)
+//     const siteUrl = process.env.SITE_URL || "https://rsu-reqs.onrender.com"; 
+//     // OR for local testing: const siteUrl = "http://localhost:3000";
+//     const resetLink = `${siteUrl}/reset-password?token=${resetToken}`;
+
+//     console.log(`[DEBUG] Generated Link for ${user.email}: ${resetLink}`);
+
+//     // 4. Send via EmailJS REST API
+//     // We WAIT (await) for this to finish before responding to the frontend
+//     const emailPayload = {
+//       service_id: "service_0yj04gg",     // Your Service ID from index.html
+//       template_id: "template_i87iden",   // Your Template ID from index.html
+//       user_id: "T7baF7XJ6nZCGRnMi",      // Your Public Key from index.html
+//       accessToken: "YOUR_PRIVATE_KEY_HERE", // <--- 🔴 PASTE PRIVATE KEY HERE
+//       template_params: {
+//         to_email: user.email,
+//         to_name: user.fullname,
+//         reset_link: resetLink,
+//       },
+//     };
+
+//     await axios.post("https://api.emailjs.com/api/v1.0/email/send", emailPayload);
+    
+//     // 5. If we get here, EmailJS worked!
+//     console.log(`✅ Email successfully sent to ${user.email}`);
+//     res.json({
+//       success: true,
+//       message: "Success! Check your email for the reset link.",
+//     });
+
+//   } catch (error) {
+//     // 6. CATCH ERRORS
+//     console.error("❌ EmailJS/DB Error:", error.response?.data || error.message);
+    
+//     // Send the ACTUAL error to the frontend so you can see it
+//     res.status(500).json({ 
+//       success: false, 
+//       message: "Failed to send: " + (error.response?.data || error.message) 
+//     });
+//   }
+// });
+
+// === API: FORGOT PASSWORD (STUDENTS ONLY) ===
 app.post("/api/forgot-password", async (req, res) => {
-  const { email } = req.body;
+  // Trim removes accidental spaces from copy-pasting
+  const email = req.body.email ? req.body.email.trim() : "";
 
   if (!email) {
     return res.status(400).json({ success: false, message: "Email is required." });
   }
 
   try {
-    // 1. Check if user exists
-    // (Using promise-based query for cleaner async/await syntax)
+    // 1. Check if user exists (Students only)
     const [users] = await db.promise().query("SELECT * FROM users WHERE email = ?", [email]);
 
     if (users.length === 0) {
-      // DEBUG MODE: Telling the truth so you know why it didn't send
+      console.log(`[DEBUG] Email failed lookup: '${email}'`); // Check your terminal to see exactly what was received
       return res.status(404).json({ 
         success: false, 
-        message: "Debug: Email not found in database." 
+        message: "Account not found. Please register first." 
       });
     }
 
@@ -2586,20 +2659,18 @@ app.post("/api/forgot-password", async (req, res) => {
       { expiresIn: "15m" }
     );
 
-    // 3. Create the Link (Use your Render URL in production!)
+    // 3. Create the Link (Use your Render URL!)
     const siteUrl = process.env.SITE_URL || "https://rsu-reqs.onrender.com"; 
-    // OR for local testing: const siteUrl = "http://localhost:3000";
     const resetLink = `${siteUrl}/reset-password?token=${resetToken}`;
 
-    console.log(`[DEBUG] Generated Link for ${user.email}: ${resetLink}`);
+    console.log(`[DEBUG] Generated Link: ${resetLink}`);
 
-    // 4. Send via EmailJS REST API
-    // We WAIT (await) for this to finish before responding to the frontend
+    // 4. Send Email via EmailJS REST API
     const emailPayload = {
-      service_id: "service_0yj04gg",     // Your Service ID from index.html
-      template_id: "template_i87iden",   // Your Template ID from index.html
-      user_id: "T7baF7XJ6nZCGRnMi",      // Your Public Key from index.html
-      accessToken: "YOUR_PRIVATE_KEY_HERE", // <--- 🔴 PASTE PRIVATE KEY HERE
+      service_id: "service_0yj04gg",
+      template_id: "template_i87iden",
+      user_id: "T7baF7XJ6nZCGRnMi",
+      accessToken: "YOUR_PRIVATE_KEY_HERE", // <--- 🔴 PASTE YOUR EMAILJS PRIVATE KEY HERE
       template_params: {
         to_email: user.email,
         to_name: user.fullname,
@@ -2609,18 +2680,13 @@ app.post("/api/forgot-password", async (req, res) => {
 
     await axios.post("https://api.emailjs.com/api/v1.0/email/send", emailPayload);
     
-    // 5. If we get here, EmailJS worked!
-    console.log(`✅ Email successfully sent to ${user.email}`);
     res.json({
       success: true,
       message: "Success! Check your email for the reset link.",
     });
 
   } catch (error) {
-    // 6. CATCH ERRORS
-    console.error("❌ EmailJS/DB Error:", error.response?.data || error.message);
-    
-    // Send the ACTUAL error to the frontend so you can see it
+    console.error("❌ Error:", error.response?.data || error.message);
     res.status(500).json({ 
       success: false, 
       message: "Failed to send: " + (error.response?.data || error.message) 
