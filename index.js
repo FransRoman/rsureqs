@@ -124,17 +124,15 @@ const JWT_SECRET = process.env.JWT_SECRET || "rsu-reqs-admin-secret-key-2024";
 const JWT_RESET_SECRET =
   process.env.JWT_RESET_SECRET || "rsu-reqs-reset-secret-key-9a8b7c6d";
 
-// --- 🟢 UPDATED MAIL CONFIGURATION (Service Mode) 🟢 ---
+// --- 🟢 UPDATED MAIL CONFIGURATION (Brevo/SMTP) 🟢 ---
 const transporter = nodemailer.createTransport({
-  service: "gmail", // Let Nodemailer handle the ports automatically
+  host: "smtp-relay.brevo.com", // Brevo's server
+  port: 587, // Secure port for Render
+  secure: false, // true for 465, false for other ports
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    user: process.env.EMAIL_USER, // Your Brevo Login Email
+    pass: process.env.EMAIL_PASS, // Your Brevo SMTP Key
   },
-  // Increase timeout to 30 seconds to prevent early cutoffs
-  connectionTimeout: 30000,
-  greetingTimeout: 30000,
-  socketTimeout: 30000,
 });
 
 const db = mysql.createPool({
@@ -2629,74 +2627,138 @@ app.post("/api/admin/mark-claimed", authenticateAdmin, (req, res) => {
 // });
 
 // === API: FORGOT PASSWORD (EXTREME DEBUG MODE) ===
-app.post("/api/forgot-password", async (req, res) => {
-  // 1. Get raw input
-  const rawEmail = req.body.email;
-  const trimmedEmail = rawEmail ? rawEmail.trim() : "";
+// app.post("/api/forgot-password", async (req, res) => {
+//   // 1. Get raw input
+//   const rawEmail = req.body.email;
+//   const trimmedEmail = rawEmail ? rawEmail.trim() : "";
   
-  console.log("------------------------------------------------");
-  console.log(`[DEBUG] Incoming Request for: '${rawEmail}'`);
-  console.log(`[DEBUG] Trimmed Email:        '${trimmedEmail}'`);
+//   console.log("------------------------------------------------");
+//   console.log(`[DEBUG] Incoming Request for: '${rawEmail}'`);
+//   console.log(`[DEBUG] Trimmed Email:        '${trimmedEmail}'`);
 
-  if (!trimmedEmail) {
+//   if (!trimmedEmail) {
+//     return res.status(400).json({ success: false, message: "Email is required." });
+//   }
+
+//   try {
+//     // 2. CHECK DATABASE FOR MATCH
+//     const [users] = await db.promise().query("SELECT * FROM users WHERE email = ?", [trimmedEmail]);
+
+//     // 3. IF NO MATCH, PRINT WHAT *IS* IN THE DATABASE (To find the typo)
+//     if (users.length === 0) {
+//       console.log(`[DEBUG] ❌ No exact match found.`);
+      
+//       // Fetch ALL emails to see what is actually registered
+//       const [allUsers] = await db.promise().query("SELECT email FROM users");
+//       console.log(`[DEBUG] 📋 DUMPING ALL REGISTERED EMAILS:`);
+//       allUsers.forEach(u => console.log(`   - '${u.email}'`)); // Look closely at these logs!
+//       console.log("------------------------------------------------");
+
+//       return res.status(404).json({ 
+//         success: false, 
+//         message: "Account not found. Check server logs for list of real emails." 
+//       });
+//     }
+
+//     // 4. FOUND IT!
+//     const user = users[0];
+//     console.log(`[DEBUG] ✅ User Found: ID ${user.id}`);
+
+//     // ... Token Generation & Email Sending Logic ...
+//     // (Ensure JWT_RESET_SECRET is defined at top of index.js)
+//     const resetToken = jwt.sign(
+//       { userId: user.id, email: user.email },
+//       process.env.JWT_RESET_SECRET || "rsu-reqs-reset-secret-key-9a8b7c6d", 
+//       { expiresIn: "15m" }
+//     );
+
+//     const siteUrl = process.env.SITE_URL || "https://rsu-reqs.onrender.com"; 
+//     const resetLink = `${siteUrl}/reset-password?token=${resetToken}`;
+
+//     const emailPayload = {
+//       service_id: "service_0yj04gg",
+//       template_id: "template_i87iden",
+//       user_id: "T7baF7XJ6nZCGRnMi",
+//       accessToken: "Ymt4QKGdic_SYRe_6vJZa", // <--- 🔴 PASTE PRIVATE KEY HERE
+//       template_params: {
+//         to_email: user.email,
+//         to_name: user.fullname,
+//         reset_link: resetLink,
+//       },
+//     };
+
+//     await axios.post("https://api.emailjs.com/api/v1.0/email/send", emailPayload);
+    
+//     console.log(`[DEBUG] Email sent successfully.`);
+//     res.json({ success: true, message: "Success! Reset link sent." });
+
+//   } catch (error) {
+//     console.error("❌ ERROR:", error.response?.data || error.message);
+//     res.status(500).json({ success: false, message: "Error: " + error.message });
+//   }
+// });
+
+// === API: FORGOT PASSWORD (NODEMAILER VERSION) ===
+app.post("/api/forgot-password", async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
     return res.status(400).json({ success: false, message: "Email is required." });
   }
 
   try {
-    // 2. CHECK DATABASE FOR MATCH
-    const [users] = await db.promise().query("SELECT * FROM users WHERE email = ?", [trimmedEmail]);
+    // 1. Check if user exists
+    const [users] = await db.promise().query("SELECT * FROM users WHERE email = ?", [email]);
 
-    // 3. IF NO MATCH, PRINT WHAT *IS* IN THE DATABASE (To find the typo)
     if (users.length === 0) {
-      console.log(`[DEBUG] ❌ No exact match found.`);
-      
-      // Fetch ALL emails to see what is actually registered
-      const [allUsers] = await db.promise().query("SELECT email FROM users");
-      console.log(`[DEBUG] 📋 DUMPING ALL REGISTERED EMAILS:`);
-      allUsers.forEach(u => console.log(`   - '${u.email}'`)); // Look closely at these logs!
-      console.log("------------------------------------------------");
-
-      return res.status(404).json({ 
-        success: false, 
-        message: "Account not found. Check server logs for list of real emails." 
+      // Security: Don't reveal if the email exists or not
+      return res.json({ 
+        success: true, 
+        message: "If an account exists, a reset link has been sent." 
       });
     }
 
-    // 4. FOUND IT!
     const user = users[0];
-    console.log(`[DEBUG] ✅ User Found: ID ${user.id}`);
 
-    // ... Token Generation & Email Sending Logic ...
-    // (Ensure JWT_RESET_SECRET is defined at top of index.js)
+    // 2. Generate Token (Valid for 15 mins)
     const resetToken = jwt.sign(
       { userId: user.id, email: user.email },
       process.env.JWT_RESET_SECRET || "rsu-reqs-reset-secret-key-9a8b7c6d", 
       { expiresIn: "15m" }
     );
 
-    const siteUrl = process.env.SITE_URL || "https://rsu-reqs.onrender.com"; 
+    // 3. Create Link
+    // On Render, this environment variable should be your real URL (e.g. https://rsu-reqs.onrender.com)
+    const siteUrl = process.env.SITE_URL || "http://localhost:3000"; 
     const resetLink = `${siteUrl}/reset-password?token=${resetToken}`;
 
-    const emailPayload = {
-      service_id: "service_0yj04gg",
-      template_id: "template_i87iden",
-      user_id: "T7baF7XJ6nZCGRnMi",
-      accessToken: "Ymt4QKGdic_SYRe_6vJZa", // <--- 🔴 PASTE PRIVATE KEY HERE
-      template_params: {
-        to_email: user.email,
-        to_name: user.fullname,
-        reset_link: resetLink,
-      },
+    // 4. Send Email using Nodemailer
+    const mailOptions = {
+      from: `"RSU Registrar" <${process.env.EMAIL_USER}>`, // Valid Sender Name <email>
+      to: user.email,
+      subject: "Password Reset Request",
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+          <h2 style="color: #0d6efd;">Hello ${user.first_name},</h2>
+          <p>You recently requested to reset your password for your RSU REQS account.</p>
+          <p>Click the button below to proceed. This link expires in 15 minutes.</p>
+          <a href="${resetLink}" style="background-color: #0d6efd; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 10px; font-weight: bold;">Reset Password</a>
+          <br><br>
+          <p style="color: #666; font-size: 0.9em;">If you did not request a password reset, please ignore this email or contact support if you have questions.</p>
+          <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+          <p style="color: #999; font-size: 0.8em;">Romblon State University - Registrar's Office</p>
+        </div>
+      `,
     };
 
-    await axios.post("https://api.emailjs.com/api/v1.0/email/send", emailPayload);
+    await transporter.sendMail(mailOptions);
     
-    console.log(`[DEBUG] Email sent successfully.`);
-    res.json({ success: true, message: "Success! Reset link sent." });
+    console.log(`✅ Reset email sent to ${user.email} via Brevo`);
+    res.json({ success: true, message: "If an account exists, a reset link has been sent." });
 
   } catch (error) {
-    console.error("❌ ERROR:", error.response?.data || error.message);
-    res.status(500).json({ success: false, message: "Error: " + error.message });
+    console.error("❌ Nodemailer/Brevo Error:", error);
+    res.status(500).json({ success: false, message: "Server error sending email." });
   }
 });
 
