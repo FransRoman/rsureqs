@@ -2628,49 +2628,60 @@ app.post("/api/admin/mark-claimed", authenticateAdmin, (req, res) => {
 //   }
 // });
 
-// === API: FORGOT PASSWORD (STUDENTS ONLY) ===
+// === API: FORGOT PASSWORD (EXTREME DEBUG MODE) ===
 app.post("/api/forgot-password", async (req, res) => {
-  // Trim removes accidental spaces from copy-pasting
-  const email = req.body.email ? req.body.email.trim() : "";
+  // 1. Get raw input
+  const rawEmail = req.body.email;
+  const trimmedEmail = rawEmail ? rawEmail.trim() : "";
+  
+  console.log("------------------------------------------------");
+  console.log(`[DEBUG] Incoming Request for: '${rawEmail}'`);
+  console.log(`[DEBUG] Trimmed Email:        '${trimmedEmail}'`);
 
-  if (!email) {
+  if (!trimmedEmail) {
     return res.status(400).json({ success: false, message: "Email is required." });
   }
 
   try {
-    // 1. Check if user exists (Students only)
-    const [users] = await db.promise().query("SELECT * FROM users WHERE email = ?", [email]);
+    // 2. CHECK DATABASE FOR MATCH
+    const [users] = await db.promise().query("SELECT * FROM users WHERE email = ?", [trimmedEmail]);
 
+    // 3. IF NO MATCH, PRINT WHAT *IS* IN THE DATABASE (To find the typo)
     if (users.length === 0) {
-      console.log(`[DEBUG] Email failed lookup: '${email}'`); // Check your terminal to see exactly what was received
+      console.log(`[DEBUG] ❌ No exact match found.`);
+      
+      // Fetch ALL emails to see what is actually registered
+      const [allUsers] = await db.promise().query("SELECT email FROM users");
+      console.log(`[DEBUG] 📋 DUMPING ALL REGISTERED EMAILS:`);
+      allUsers.forEach(u => console.log(`   - '${u.email}'`)); // Look closely at these logs!
+      console.log("------------------------------------------------");
+
       return res.status(404).json({ 
         success: false, 
-        message: "Account not found. Please register first." 
+        message: "Account not found. Check server logs for list of real emails." 
       });
     }
 
+    // 4. FOUND IT!
     const user = users[0];
+    console.log(`[DEBUG] ✅ User Found: ID ${user.id}`);
 
-    // 2. Generate the Token
-    // Ensure JWT_RESET_SECRET is defined at the top of index.js!
+    // ... Token Generation & Email Sending Logic ...
+    // (Ensure JWT_RESET_SECRET is defined at top of index.js)
     const resetToken = jwt.sign(
       { userId: user.id, email: user.email },
       process.env.JWT_RESET_SECRET || "rsu-reqs-reset-secret-key-9a8b7c6d", 
       { expiresIn: "15m" }
     );
 
-    // 3. Create the Link (Use your Render URL!)
     const siteUrl = process.env.SITE_URL || "https://rsu-reqs.onrender.com"; 
     const resetLink = `${siteUrl}/reset-password?token=${resetToken}`;
 
-    console.log(`[DEBUG] Generated Link: ${resetLink}`);
-
-    // 4. Send Email via EmailJS REST API
     const emailPayload = {
       service_id: "service_0yj04gg",
       template_id: "template_i87iden",
       user_id: "T7baF7XJ6nZCGRnMi",
-      accessToken: "mt4QKGdic_SYRe_6vJZa", // <--- 🔴 PASTE YOUR EMAILJS PRIVATE KEY HERE
+      accessToken: "YOUR_PRIVATE_KEY_HERE", // <--- 🔴 PASTE PRIVATE KEY HERE
       template_params: {
         to_email: user.email,
         to_name: user.fullname,
@@ -2680,17 +2691,12 @@ app.post("/api/forgot-password", async (req, res) => {
 
     await axios.post("https://api.emailjs.com/api/v1.0/email/send", emailPayload);
     
-    res.json({
-      success: true,
-      message: "Success! Check your email for the reset link.",
-    });
+    console.log(`[DEBUG] Email sent successfully.`);
+    res.json({ success: true, message: "Success! Reset link sent." });
 
   } catch (error) {
-    console.error("❌ Error:", error.response?.data || error.message);
-    res.status(500).json({ 
-      success: false, 
-      message: "Failed to send: " + (error.response?.data || error.message) 
-    });
+    console.error("❌ ERROR:", error.response?.data || error.message);
+    res.status(500).json({ success: false, message: "Error: " + error.message });
   }
 });
 
