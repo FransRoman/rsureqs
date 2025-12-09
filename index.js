@@ -2681,7 +2681,7 @@ app.post("/api/forgot-password", async (req, res) => {
       service_id: "service_0yj04gg",
       template_id: "template_i87iden",
       user_id: "T7baF7XJ6nZCGRnMi",
-      accessToken: "YOUR_PRIVATE_KEY_HERE", // <--- 🔴 PASTE PRIVATE KEY HERE
+      accessToken: "Ymt4QKGdic_SYRe_6vJZa", // <--- 🔴 PASTE PRIVATE KEY HERE
       template_params: {
         to_email: user.email,
         to_name: user.fullname,
