@@ -77,13 +77,13 @@
       const submitBtn = document.getElementById("submitBtn");
       const originalBtnText = submitBtn.innerHTML;
 
-      // UI Loading State
+      // 1. UI Loading State (This shows the user we are working)
       submitBtn.disabled = true;
       submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sending...';
       formAlert.classList.add("d-none");
 
       try {
-        // Call the BACKEND to generate token and send email
+        // 2. Send request to YOUR backend (not EmailJS directly)
         const response = await fetch("/api/forgot-password", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -92,19 +92,25 @@
 
         const result = await response.json();
 
-        if (result.success) {
+        if (response.ok && result.success) {
+            // SUCCESS
             formAlert.classList.remove("d-none", "alert-danger");
             formAlert.classList.add("alert-success");
             formAlert.textContent = result.message;
             submitBtn.innerHTML = "Link Sent!";
         } else {
-            throw new Error(result.message);
+            // FAILURE (Now shows the real error from backend)
+            throw new Error(result.message || "Unknown error occurred");
         }
 
       } catch (error) {
+        // ERROR STATE
+        console.error("Frontend Error:", error);
         formAlert.classList.remove("d-none", "alert-success");
         formAlert.classList.add("alert-danger");
-        formAlert.textContent = "Error: " + error.message;
+        formAlert.textContent = error.message; // Shows "Email not found" or "Failed to send"
+        
+        // Reset button
         submitBtn.disabled = false;
         submitBtn.innerHTML = originalBtnText;
       }
