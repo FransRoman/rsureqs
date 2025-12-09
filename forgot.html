@@ -59,7 +59,7 @@
           formAlert.classList.add("d-none");
 
           try {
-            // 2. GET SECURE LINK FROM BACKEND
+            // 2. ASK BACKEND FOR THE LINK
             const response = await fetch("/api/forgot-password", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -69,12 +69,16 @@
             const result = await response.json();
 
             if (result.success) {
-              // If account exists, the backend gave us the link. Now WE send the email.
               if (result.emailFound) {
+                  // SAFETY CHECK: Did the backend actually give us the link?
+                  if (!result.reset_link) {
+                      throw new Error("Backend Error: reset_link is missing! Did you update index.js?");
+                  }
+
                   const templateParams = {
                       to_email: emailInput,
                       to_name: result.user_name,
-                      reset_link: result.reset_link // <--- This fills the button in your email
+                      reset_link: result.reset_link // <--- This fills the button
                   };
 
                   // 3. SEND EMAIL FROM BROWSER

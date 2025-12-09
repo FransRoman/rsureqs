@@ -2486,7 +2486,7 @@ app.post("/api/admin/mark-claimed", authenticateAdmin, (req, res) => {
 //   );
 // });
 
-// === API: FORGOT PASSWORD (HYBRID APPROACH) ===
+// === API: FORGOT PASSWORD (HYBRID FIX) ===
 app.post("/api/forgot-password", (req, res) => {
   const { email } = req.body;
 
@@ -2504,11 +2504,11 @@ app.post("/api/forgot-password", (req, res) => {
         return res.status(500).json({ message: "Database error" });
       }
 
-      // Security: If user not found, fake success to protect privacy
+      // If user is not found, we tell frontend NOT to send email
       if (results.length === 0) {
         return res.json({
           success: true,
-          emailFound: false, // Frontend will see this and skip sending email
+          emailFound: false, 
           message: "If an account exists, a reset link has been sent.",
         });
       }
@@ -2523,15 +2523,16 @@ app.post("/api/forgot-password", (req, res) => {
       );
 
       // 3. Construct the Link
+      // We use the SITE_URL from your screenshot
       const siteUrl = process.env.SITE_URL || "https://rsureqs-bsz9.onrender.com";
       const resetLink = `${siteUrl}/reset-password?token=${resetToken}`;
 
-      // 4. RETURN LINK TO FRONTEND
+      // 4. SEND THE LINK BACK TO THE BROWSER
       res.json({
         success: true,
         emailFound: true,
         user_name: user.fullname, 
-        reset_link: resetLink,    // <--- Sending link to browser
+        reset_link: resetLink,    // <--- This is the key piece!
         message: "Link generated successfully.",
       });
     }
