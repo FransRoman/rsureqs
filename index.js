@@ -2417,73 +2417,140 @@ app.post("/api/admin/mark-claimed", authenticateAdmin, (req, res) => {
 // });
 
 // === API: FORGOT PASSWORD (SECURE BACKEND EMAILJS) - NEW ===
-app.post("/api/forgot-password", (req, res) => {
+// app.post("/api/forgot-password", (req, res) => {
+//   const { email } = req.body;
+
+//   if (!email) {
+//     return res.status(400).json({ success: false, message: "Email required" });
+//   }
+
+//   // 1. Find the user
+//   db.query(
+//     "SELECT * FROM users WHERE email = ?",
+//     [email],
+//     async (err, results) => {
+//       if (err) {
+//         console.error("Database error:", err);
+//         return res.status(500).json({ message: "Database error" });
+//       }
+
+//       // 2. Security: Don't reveal if email exists or not
+//       if (results.length === 0) {
+//         return res.json({
+//           success: true,
+//           message: "If an account exists, a reset link has been sent.",
+//         });
+//       }
+
+//       const user = results[0];
+
+//       // 3. Generate the Token (Valid for 15 mins)
+//       const resetToken = jwt.sign(
+//         { userId: user.id, email: user.email },
+//         JWT_RESET_SECRET, // Make sure this variable is defined in your code
+//         { expiresIn: "15m" } 
+//       );
+
+//       // 4. Construct the Link
+//       // On Render, SITE_URL should be your live URL (e.g. https://rsu-reqs.onrender.com)
+//       const siteUrl = process.env.SITE_URL || "http://localhost:3000";
+//       const resetLink = `${siteUrl}/reset-password?token=${resetToken}`;
+
+//       // 5. 🟢 SEND VIA EMAILJS REST API 🟢
+//       const emailPayload = {
+//         service_id: process.env.EMAILJS_SERVICE_ID,
+//         template_id: process.env.EMAILJS_TEMPLATE_ID,
+//         user_id: process.env.EMAILJS_PUBLIC_KEY,
+//         accessToken: process.env.EMAILJS_PRIVATE_KEY, // The Secure Key
+//         template_params: {
+//           to_email: user.email,     // Matches {{to_email}} in template settings
+//           to_name: user.fullname,   // Matches {{to_name}} in template body
+//           reset_link: resetLink,    // Matches {{reset_link}} in template body
+//         },
+//       };
+
+//       try {
+//         await axios.post("https://api.emailjs.com/api/v1.0/email/send", emailPayload);
+        
+//         console.log(`✅ Secure reset email sent to ${user.email}`);
+//         res.json({
+//           success: true,
+//           message: "If an account exists, a reset link has been sent.",
+//         });
+//       } catch (emailErr) {
+//         console.error("❌ EmailJS API Error:", emailErr.response?.data || emailErr.message);
+//         // Even if email fails, don't crash the app, just log it
+//         res.status(500).json({ success: false, message: "Error sending email." });
+//       }
+//     }
+//   );
+// });
+
+// Add this route to your index.js
+app.post("/api/forgot-password", async (req, res) => {
   const { email } = req.body;
 
   if (!email) {
     return res.status(400).json({ success: false, message: "Email required" });
   }
 
-  // 1. Find the user
-  db.query(
-    "SELECT * FROM users WHERE email = ?",
-    [email],
-    async (err, results) => {
-      if (err) {
-        console.error("Database error:", err);
-        return res.status(500).json({ message: "Database error" });
-      }
-
-      // 2. Security: Don't reveal if email exists or not
-      if (results.length === 0) {
-        return res.json({
-          success: true,
-          message: "If an account exists, a reset link has been sent.",
-        });
-      }
-
-      const user = results[0];
-
-      // 3. Generate the Token (Valid for 15 mins)
-      const resetToken = jwt.sign(
-        { userId: user.id, email: user.email },
-        JWT_RESET_SECRET, // Make sure this variable is defined in your code
-        { expiresIn: "15m" } 
-      );
-
-      // 4. Construct the Link
-      // On Render, SITE_URL should be your live URL (e.g. https://rsu-reqs.onrender.com)
-      const siteUrl = process.env.SITE_URL || "http://localhost:3000";
-      const resetLink = `${siteUrl}/reset-password?token=${resetToken}`;
-
-      // 5. 🟢 SEND VIA EMAILJS REST API 🟢
-      const emailPayload = {
-        service_id: process.env.EMAILJS_SERVICE_ID,
-        template_id: process.env.EMAILJS_TEMPLATE_ID,
-        user_id: process.env.EMAILJS_PUBLIC_KEY,
-        accessToken: process.env.EMAILJS_PRIVATE_KEY, // The Secure Key
-        template_params: {
-          to_email: user.email,     // Matches {{to_email}} in template settings
-          to_name: user.fullname,   // Matches {{to_name}} in template body
-          reset_link: resetLink,    // Matches {{reset_link}} in template body
-        },
-      };
-
-      try {
-        await axios.post("https://api.emailjs.com/api/v1.0/email/send", emailPayload);
-        
-        console.log(`✅ Secure reset email sent to ${user.email}`);
-        res.json({
-          success: true,
-          message: "If an account exists, a reset link has been sent.",
-        });
-      } catch (emailErr) {
-        console.error("❌ EmailJS API Error:", emailErr.response?.data || emailErr.message);
-        // Even if email fails, don't crash the app, just log it
-        res.status(500).json({ success: false, message: "Error sending email." });
-      }
+  // 1. Check if user exists
+  db.query("SELECT * FROM users WHERE email = ?", [email], async (err, results) => {
+    if (err) {
+      console.error("Database error:", err);
+      return res.status(500).json({ success: false, message: "Database error" });
     }
-  );
+
+    if (results.length === 0) {
+      // Security: Don't tell them the email is invalid, just say "Sent"
+      return res.json({
+        success: true,
+        message: "If an account exists, a reset link has been sent.",
+      });
+    }
+
+    const user = results[0];
+
+    // 2. Generate the Secure Token (Valid for 15 mins)
+    // Make sure JWT_RESET_SECRET is defined at the top of your file!
+    const resetToken = jwt.sign(
+      { userId: user.id, email: user.email },
+      process.env.JWT_RESET_SECRET || "rsu-reqs-reset-secret-key-9a8b7c6d", 
+      { expiresIn: "15m" }
+    );
+
+    // 3. Create the Link
+    // IMPORTANT: Change this URL to your live Render URL when deploying!
+    const siteUrl = process.env.SITE_URL || "https://rsu-reqs.onrender.com"; 
+    const resetLink = `${siteUrl}/reset-password?token=${resetToken}`;
+
+    console.log("Generated Link:", resetLink); // Debugging
+
+    // 4. Send Email via EmailJS REST API
+    const emailData = {
+      service_id: "service_0yj04gg",   // Your Service ID
+      template_id: "template_i87iden", // Your Template ID
+      user_id: "T7baF7XJ6nZCGRnMi",    // Your Public Key
+      accessToken: "ogn1pFOVBvY4JlbtJBzuv", // <--- 🔴 GET THIS FROM EMAILJS DASHBOARD (Account > API Keys)
+      template_params: {
+        to_email: user.email,
+        to_name: user.fullname,
+        reset_link: resetLink, // This injects the link into the email
+      },
+    };
+
+    try {
+      await axios.post("https://api.emailjs.com/api/v1.0/email/send", emailData);
+      console.log(`✅ Password reset email sent to ${user.email}`);
+      res.json({
+        success: true,
+        message: "If an account exists, a reset link has been sent.",
+      });
+    } catch (emailErr) {
+      console.error("❌ EmailJS Error:", emailErr.response?.data || emailErr.message);
+      res.status(500).json({ success: false, message: "Failed to send email." });
+    }
+  });
 });
 
 
