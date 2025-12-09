@@ -126,12 +126,12 @@ const JWT_RESET_SECRET =
 
 // --- 🟢 UPDATED MAIL CONFIGURATION (Brevo/SMTP) 🟢 ---
 const transporter = nodemailer.createTransport({
-  host: "smtp-relay.brevo.com", // Brevo's server
-  port: 587, // Secure port for Render
-  secure: false, // true for 465, false for other ports
+  host: process.env.EMAIL_HOST, // Uses the variable you just set
+  port: process.env.EMAIL_PORT, // Uses port 587
+  secure: false, 
   auth: {
-    user: process.env.EMAIL_USER, // Your Brevo Login Email
-    pass: process.env.EMAIL_PASS, // Your Brevo SMTP Key
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
   },
 });
 
@@ -2698,69 +2698,38 @@ app.post("/api/admin/mark-claimed", authenticateAdmin, (req, res) => {
 //   }
 // });
 
-// === API: FORGOT PASSWORD (NODEMAILER VERSION) ===
-app.post("/api/forgot-password", async (req, res) => {
-  const { email } = req.body;
+// === SIMPLE (INSECURE) PASSWORD RESET ===
+app.post("/api/reset-password-simple", async (req, res) => {
+    const { email, password } = req.body;
 
-  if (!email) {
-    return res.status(400).json({ success: false, message: "Email is required." });
-  }
-
-  try {
-    // 1. Check if user exists
-    const [users] = await db.promise().query("SELECT * FROM users WHERE email = ?", [email]);
-
-    if (users.length === 0) {
-      // Security: Don't reveal if the email exists or not
-      return res.json({ 
-        success: true, 
-        message: "If an account exists, a reset link has been sent." 
-      });
+    if (!email || !password) {
+        return res.json({ success: false, message: "Missing email or password." });
     }
 
-    const user = users[0];
+    try {
+        // 1. Hash the new password
+        const hashedPassword = await bcrypt.hash(password, 10);
 
-    // 2. Generate Token (Valid for 15 mins)
-    const resetToken = jwt.sign(
-      { userId: user.id, email: user.email },
-      process.env.JWT_RESET_SECRET || "rsu-reqs-reset-secret-key-9a8b7c6d", 
-      { expiresIn: "15m" }
-    );
+        // 2. Update the user directly based on email
+        const query = "UPDATE users SET password = ? WHERE email = ?";
+        
+        db.query(query, [hashedPassword, email], (err, result) => {
+            if (err) {
+                console.error("DB Error:", err);
+                return res.status(500).json({ success: false, message: "Database error." });
+            }
+            
+            if (result.affectedRows === 0) {
+                 return res.json({ success: false, message: "Email not found." });
+            }
 
-    // 3. Create Link
-    // On Render, this environment variable should be your real URL (e.g. https://rsu-reqs.onrender.com)
-    const siteUrl = process.env.SITE_URL || "http://localhost:3000"; 
-    const resetLink = `${siteUrl}/reset-password?token=${resetToken}`;
-
-    // 4. Send Email using Nodemailer
-    const mailOptions = {
-      from: `"RSU Registrar" <${process.env.EMAIL_USER}>`, // Valid Sender Name <email>
-      to: user.email,
-      subject: "Password Reset Request",
-      html: `
-        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
-          <h2 style="color: #0d6efd;">Hello ${user.first_name},</h2>
-          <p>You recently requested to reset your password for your RSU REQS account.</p>
-          <p>Click the button below to proceed. This link expires in 15 minutes.</p>
-          <a href="${resetLink}" style="background-color: #0d6efd; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 10px; font-weight: bold;">Reset Password</a>
-          <br><br>
-          <p style="color: #666; font-size: 0.9em;">If you did not request a password reset, please ignore this email or contact support if you have questions.</p>
-          <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-          <p style="color: #999; font-size: 0.8em;">Romblon State University - Registrar's Office</p>
-        </div>
-      `,
-    };
-
-    await transporter.sendMail(mailOptions);
-    
-    console.log(`✅ Reset email sent to ${user.email} via Brevo`);
-    res.json({ success: true, message: "If an account exists, a reset link has been sent." });
-
-  } catch (error) {
-    console.error("❌ Nodemailer/Brevo Error:", error);
-    res.status(500).json({ success: false, message: "Server error sending email." });
-  }
+            res.json({ success: true, message: "Password updated successfully!" });
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Server error." });
+    }
 });
+
 
 // === API: RESET PASSWORD ===
 app.post("/api/reset-password", async (req, res) => {

@@ -68,54 +68,56 @@
       </div>
     </div>
 
- <script>
-  document.getElementById("forgotForm").addEventListener("submit", async function (e) {
+ <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+<script type="text/javascript">
+  (function(){
+     // Initialize EmailJS with your PUBLIC KEY
+     emailjs.init("keyGcpvyyEESGKQokPYu"); // I saw this key in your screenshot
+  })();
+</script>
+
+<script>
+  document.getElementById("forgotForm").addEventListener("submit", function (e) {
       e.preventDefault();
 
       const emailInput = document.getElementById("email").value;
       const formAlert = document.getElementById("formAlert");
       const submitBtn = document.getElementById("submitBtn");
-      const originalBtnText = submitBtn.innerHTML;
-
+      
       submitBtn.disabled = true;
       submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sending...';
       formAlert.classList.add("d-none");
 
-      try {
-        // 🟢 FIX: Use the full URL if you are testing locally to avoid 404 errors
-        // Note: When you deploy to Render, change this back to just "/api/forgot-password"
-        const backendUrl = window.location.hostname === "localhost" 
-            ? "http://localhost:3000/api/forgot-password" 
-            : "/api/forgot-password";
+      // 1. Create a "fake" reset link using the email directly
+      // When deployed, change "http://localhost:3000" to your Render URL!
+      const baseUrl = window.location.origin; 
+      const resetLink = `${baseUrl}/reset-password?email=${encodeURIComponent(emailInput)}`;
 
-        const response = await fetch(backendUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email: emailInput })
-        });
+      // 2. Prepare EmailJS parameters
+      const templateParams = {
+          to_email: emailInput,
+          reset_link: resetLink,
+          // You might need to add 'to_name' if your template requires it, 
+          // but for now we'll just try to send the link.
+      };
 
-        // Parse JSON safely
-        const result = await response.json();
-
-        if (response.ok && result.success) {
-            formAlert.classList.remove("d-none", "alert-danger");
-            formAlert.classList.add("alert-success");
-            formAlert.textContent = result.message;
-            submitBtn.innerHTML = "Link Sent!";
-        } else {
-            // Throw the error message from the backend (e.g., "Email not found")
-            throw new Error(result.message || "Unknown error occurred");
-        }
-
-      } catch (error) {
-        console.error("Frontend Error:", error);
-        formAlert.classList.remove("d-none", "alert-success");
-        formAlert.classList.add("alert-danger");
-        formAlert.textContent = error.message; 
-        
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = originalBtnText;
-      }
+      // 3. Send using EmailJS (Service ID, Template ID, Params)
+      // I took these IDs from your screenshot (Fix 1).
+      emailjs.send("service_0yj04gg", "template_i87iden", templateParams)
+          .then(function(response) {
+             console.log('SUCCESS!', response.status, response.text);
+             formAlert.classList.remove("d-none", "alert-danger");
+             formAlert.classList.add("alert-success");
+             formAlert.textContent = "Reset link sent! Check your email.";
+             submitBtn.innerHTML = "Link Sent";
+          }, function(error) {
+             console.log('FAILED...', error);
+             formAlert.classList.remove("d-none", "alert-success");
+             formAlert.classList.add("alert-danger");
+             formAlert.textContent = "Failed to send email. Check console.";
+             submitBtn.disabled = false;
+             submitBtn.innerHTML = "Send Reset Link";
+          });
   });
 </script>
   </body>
