@@ -124,14 +124,14 @@ const JWT_SECRET = process.env.JWT_SECRET || "rsu-reqs-admin-secret-key-2024";
 const JWT_RESET_SECRET =
   process.env.JWT_RESET_SECRET || "rsu-reqs-reset-secret-key-9a8b7c6d";
 
-// --- 🟢 UPDATED MAIL CONFIGURATION (Brevo/SMTP) 🟢 ---
 const transporter = nodemailer.createTransport({
   host: "smtp-relay.brevo.com",
-  port: 587,
+  // CHANGE THIS: 587 often gets blocked on cloud servers. 2525 usually works.
+  port: 2525, 
   secure: false, 
   auth: {
-    user: "9d82a0001@smtp-brevo.com", // Your exact login from the screenshot
-    pass: "bskH60jZVU65uZm",         // Your API Key
+    user: "9d82a0001@smtp-brevo.com", 
+    pass: "bskH60jZVU65uZm",         
   },
 });
 
