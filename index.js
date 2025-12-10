@@ -2733,11 +2733,10 @@ app.post("/api/forgot-password", (req, res) => {
       { expiresIn: "1h" }
     );
 
-    // 3. Create the Link (Use your Render URL in production!)
-    // For now, it uses the host header to guess the URL automatically
-    const protocol = req.protocol;
-    const host = req.get('host'); 
-    const resetLink = `${protocol}://${host}/reset-password?token=${resetToken}`;
+   // 3. Create the Link
+    // If SITE_URL is set in Render, use it. Otherwise, guess based on the request.
+    const siteUrl = process.env.SITE_URL || `${req.protocol}://${req.get('host')}`;
+    const resetLink = `${siteUrl}/reset-password?token=${resetToken}`;
 
     // 4. Send Email via Brevo Transporter
     const mailOptions = {
