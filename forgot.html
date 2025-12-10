@@ -14,13 +14,13 @@
     />
     <link href="/assets/css/style.css" rel="stylesheet" />
 
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    <!-- <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
     <script type="text/javascript">
       (function(){
          // Public Key from index.html
          emailjs.init("GcpvyyEESGKQokPYu"); 
       })();
-    </script>
+    </script> -->
   </head>
   <body>
     <div class="d-flex flex-grow-1 justify-content-center align-items-center margin-auto">
@@ -68,16 +68,16 @@
       </div>
     </div>
 
- <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+ <!-- <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 <script type="text/javascript">
   (function(){
      // Initialize EmailJS with your PUBLIC KEY
      emailjs.init("GcpvyyEESGKQokPYu"); // I saw this key in your screenshot
   })();
-</script>
+</script> -->
 
 <script>
-  document.getElementById("forgotForm").addEventListener("submit", function (e) {
+  document.getElementById("forgotForm").addEventListener("submit", async function (e) {
       e.preventDefault();
 
       const emailInput = document.getElementById("email").value;
@@ -88,37 +88,33 @@
       submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sending...';
       formAlert.classList.add("d-none");
 
-      // 1. Create a "fake" reset link using the email directly
-      // When deployed, change "http://localhost:3000" to your Render URL!
-      const baseUrl = window.location.origin; 
-      const resetLink = `${baseUrl}/reset-password?email=${encodeURIComponent(emailInput)}`;
+      try {
+        // Send request to your Node.js backend
+        const response = await fetch("/api/forgot-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: emailInput }),
+        });
 
-      // 2. Prepare EmailJS parameters
-      const templateParams = {
-          to_email: emailInput, // Must match {{to_email}} in the template
-          to_name: "User",      // Must match {{to_name}} in the template
-          reset_link: resetLink, // Must match {{reset_link}} in the template
-      };
+        const result = await response.json();
 
-      // emailjs.send("service_0yj04gg", "template_i87iden", templateParams)
+        if (result.success) {
+           formAlert.classList.remove("d-none", "alert-danger");
+           formAlert.classList.add("alert-success");
+           formAlert.textContent = "Reset link sent! Check your email.";
+           submitBtn.innerHTML = "Link Sent";
+        } else {
+           throw new Error(result.message);
+        }
 
-      // 3. Send using EmailJS (Service ID, Template ID, Params)
-      // I took these IDs from your screenshot (Fix 1).
-      emailjs.send("service_0yj04gg", "template_i87iden", templateParams)
-          .then(function(response) {
-             console.log('SUCCESS!', response.status, response.text);
-             formAlert.classList.remove("d-none", "alert-danger");
-             formAlert.classList.add("alert-success");
-             formAlert.textContent = "Reset link sent! Check your email.";
-             submitBtn.innerHTML = "Link Sent";
-          }, function(error) {
-             console.log('FAILED...', error);
-             formAlert.classList.remove("d-none", "alert-success");
-             formAlert.classList.add("alert-danger");
-             formAlert.textContent = "Failed to send email. Check console.";
-             submitBtn.disabled = false;
-             submitBtn.innerHTML = "Send Reset Link";
-          });
+      } catch (error) {
+         console.error(error);
+         formAlert.classList.remove("d-none", "alert-success");
+         formAlert.classList.add("alert-danger");
+         formAlert.textContent = "Failed to send email. Try again.";
+         submitBtn.disabled = false;
+         submitBtn.innerHTML = "Send Reset Link";
+      }
   });
 </script>
   </body>
